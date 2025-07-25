@@ -5,6 +5,7 @@ from models import db, User, Sale
 import joblib
 from openai import AzureOpenAI
 import numpy as np
+import json
 
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///crafts.db'
@@ -27,10 +28,6 @@ client = AzureOpenAI(
 db.init_app(app)
 CORS(app)
 print("Starting backend...")
-model = joblib.load('recommendation_model.pkl')
-print("Loaded recommendation_model.pkl")
-action_mapping = joblib.load('action_mapping.pkl')
-print("Loaded action_mapping.pkl")
 season_map = {'festival': 0, 'off_season': 1, 'holiday': 2, 'regular': 3}
 
 # User Registration/KYC with email check
@@ -140,15 +137,19 @@ def generate_plan():
         return jsonify({"error": "Missing required fields: initial_fund, region, orders, timeline"}), 400
 
     prompt = f"""
-    My name is {user.name}, age {user.age}, occupation {user.occupation}, 
-    with an initial fund of ₹{initial_fund}, planning {orders} orders over {timeline} months.
-    Please generate a budget planner table including:
-    - raw material cost
-    - machine cost
-    - tool cost
-    - transport cost
-    - labour cost
-    - profit margin.
+        My name is {user.name}, age {user.age}, occupation {user.occupation}, 
+        with an initial fund of ₹{initial_fund}, planning {orders} orders over {timeline} months.
+        Please generate a budget planner table including:
+        - raw material cost
+        - machine cost
+        - tool cost
+        - transport cost
+        - labour cost
+        - profit margin.
+
+        Strictly provide only json string in output, do not include any other text.
+        do not print json word in the response and remove the starting and trailing backticks.
+        Provide output with a single json node having the properties - raw_material_cost,machine_cost,tool_cost,transport_cost,labour_cost,profit_margin
     """
     print(f"Generated prompt: {prompt}")
     try:
@@ -163,13 +164,14 @@ def generate_plan():
         )
 
         budget_plan = response.choices[0].message.content
+        print(budget_plan)
     except Exception as e:
         return jsonify({"error": f"OpenAI API error: {str(e)}"}), 500
-
-    return jsonify({'budget_plan': budget_plan})
+    #print(json.load(budget_plan))
+     # Ensure the response is valid JSON
+    return jsonify({"budget_plan": budget_plan})
 
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
     app.run(host='0.0.0.0', port=5000, debug=True)
-
